@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NewTube Nexus | Focus & Learn</title>
+    <!-- Dynamic Favicon Link -->
+    <link id="favicon" rel="icon" type="image/svg+xml" href="">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        industrial: {
+                            950: '#06090e',
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                            400: '#94a3b8',
+                            accent: '#0ea5e9', // Cool cyan/blue
+                            highlight: '#f8fafc'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #06090e;
+            color: #f8fafc;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(14, 165, 233, 0.03), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(255, 255, 255, 0.02), transparent 25%);
+        }
+        
+        /* Custom Scrollbar for Industrial Look */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #06090e; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+        /* Card Animations & Glassmorphism */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .video-card {
+            transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            opacity: 0;
+            transform: translateY(20px) scale(0.98);
+        }
+        .video-card.loaded {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+        .video-card:hover {
+            transform: translateY(-4px) scale(1.01);
+            border-color: rgba(14, 165, 233, 0.4);
+            box-shadow: 0 10px 30px -10px rgba(14, 165, 233, 0.15);
+        }
+
+        /* Stats Bars */
+        .stat-bar-fill {
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Pulse for Active AI */
+        @keyframes scanline {
+            0% { transform: translateY(-100%); opacity: 0; }
+            50% { opacity: 0.1; }
+            100% { transform: translateY(100%); opacity: 0; }
+        }
+        .ai-processing::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to bottom, transparent, #0ea5e9, transparent);
+            animation: scanline 2s linear infinite;
+            pointer-events: none;
+        }
+
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="min-h-screen pb-10">
+
+    <!-- Industrial SVG Logo Definition (Used dynamically) -->
+    <svg id="app-logo" class="hidden" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#0ea5e9" />
+                <stop offset="100%" stop-color="#3b82f6" />
+            </linearGradient>
+        </defs>
+        <!-- Outer Tech Hexagon -->
+        <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" fill="#0f172a" stroke="url(#grad)" stroke-width="6" stroke-linejoin="round"/>
+        <!-- Inner Layer -->
+        <polygon points="50,15 85,32.5 85,67.5 50,85 15,67.5 15,32.5" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+        <!-- Forward/Play Emblem -->
+        <polygon points="40,35 70,50 40,65" fill="#f8fafc" rx="2"/>
+        <rect x="28" y="35" width="6" height="30" fill="#0ea5e9" rx="1"/>
+    </svg>
+
+    <!-- Header Navigation -->
+    <header class="sticky top-0 z-40 glass-panel border-b border-white/5">
+        <div class="max-w-[1400px] mx-auto px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+            
+            <!-- Branding -->
+            <div class="flex items-center space-x-4 shrink-0 cursor-pointer" onclick="resetFeed()">
+                <div class="w-10 h-10 flex items-center justify-center shadow-lg shadow-blue-900/20" id="logo-container">
+                    <!-- Logo injected here -->
+                </div>
+                <div>
+                    <h1 class="text-xl font-black tracking-tight text-white">NEW<span class="text-industrial-accent">TUBE</span> <span class="font-light text-industrial-400 text-sm">NEXUS</span></h1>
+                    <div class="flex items-center mt-0.5">
+                        <span id="algo-indicator" class="w-1.5 h-1.5 bg-industrial-700 rounded-full mr-2 transition-colors"></span>
+                        <p id="algo-status" class="text-[9px] font-mono text-industrial-400 uppercase tracking-wider">Engine Idle</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Global Search & Command -->
+            <div class="relative w-full max-w-xl group">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg class="w-4 h-4 text-industrial-400 group-focus-within:text-industrial-accent transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+                <input type="text" id="search-input" oninput="handleSearch(this.value)" placeholder="Search queries, creators, or topics..." 
+                       class="w-full bg-industrial-900/50 border border-industrial-700/50 rounded-xl py-2.5 pl-11 pr-4 text-sm text-white placeholder-industrial-400 focus:outline-none focus:border-industrial-accent/50 focus:ring-1 focus:ring-industrial-accent/50 transition-all shadow-inner">
+            </div>
+
+            <!-- Tools -->
+            <div class="flex items-center space-x-2 shrink-0">
+                <button onclick="toggleDashboard()" class="p-2.5 rounded-xl bg-industrial-800/50 hover:bg-industrial-800 text-industrial-400 hover:text-white border border-white/5 transition-all group" title="Intelligence Dashboard">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                </button>
+                <button onclick="forceRefresh()" class="p-2.5 rounded-xl bg-industrial-800/50 hover:bg-industrial-800 text-industrial-400 hover:text-white border border-white/5 transition-all group" title="Recompute Feed">
+                    <svg class="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Category Filters -->
+    <div class="max-w-[1400px] mx-auto px-6 py-4">
+        <div class="flex items-center space-x-2 overflow-x-auto hide-scrollbar" id="tag-filters">
+            <!-- Dynamic tags will be injected here -->
+        </div>
+    </div>
+
+    <!-- Main Feed -->
+    <main class="max-w-[1400px] mx-auto px-6">
+        <div class="mb-6 flex justify-between items-end">
+            <div>
+                <h2 id="section-title" class="text-xl font-bold tracking-tight">Algorithmic Feed</h2>
+                <p class="text-industrial-400 text-xs font-mono mt-1" id="feed-subtitle">Sorted by contextual relevance</p>
+            </div>
+            <div id="active-context" class="flex gap-2"></div>
+        </div>
+        
+        <div id="video-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Videos injected here -->
+        </div>
+
+        <div id="scroll-anchor" class="h-32 flex flex-col items-center justify-center opacity-0 transition-opacity">
+            <div class="w-6 h-6 border-2 border-industrial-accent border-t-transparent rounded-full animate-spin mb-3"></div>
+            <p class="text-[10px] font-mono text-industrial-400 uppercase tracking-widest">Loading Batch</p>
+        </div>
+    </main>
+
+    <!-- THEATER MODE (Productivity Focus) -->
+    <div id="theater-modal" class="fixed inset-0 bg-industrial-950/95 backdrop-blur-3xl z-50 hidden flex-col">
+        <header class="p-4 flex justify-between items-center border-b border-white/5 bg-industrial-900/50">
+            <h3 id="theater-title" class="text-white font-bold truncate pr-4">Video Title</h3>
+            <button onclick="closeTheater()" class="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-sm font-mono transition-colors">Exit Focus Mode (ESC)</button>
+        </header>
+        <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+            <!-- Video Player -->
+            <div class="flex-1 bg-black relative shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+                <iframe id="theater-frame" class="w-full h-full absolute inset-0" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            </div>
+            <!-- Productivity Notes Panel -->
+            <div class="w-full lg:w-96 bg-industrial-900 border-l border-white/5 flex flex-col">
+                <div class="p-4 border-b border-white/5 flex justify-between items-center bg-industrial-800/30">
+                    <span class="text-xs font-mono uppercase tracking-widest text-industrial-400">Context Notes</span>
+                    <button onclick="saveNotes()" class="text-xs text-industrial-accent hover:text-white transition-colors font-mono">Auto-Saved</button>
+                </div>
+                <textarea id="theater-notes" class="flex-1 bg-transparent p-4 text-sm text-industrial-100 placeholder-industrial-700 resize-none outline-none custom-scrollbar font-sans leading-relaxed" placeholder="Jot down key takeaways, timestamps, or ideas here..."></textarea>
+                
+                <!-- Quick rating embedded in theater -->
+                <div class="p-4 border-t border-white/5 bg-industrial-950">
+                    <p class="text-[10px] font-mono text-industrial-400 uppercase tracking-widest mb-3 text-center">Train Algorithm</p>
+                    <div class="flex justify-between gap-2">
+                        <button onclick="theaterRate(-2)" class="t-rate-btn flex-1 py-2 bg-industrial-800 rounded text-lg hover:bg-red-500/20 hover:text-red-400 transition" title="Dislike">👎</button>
+                        <button onclick="theaterRate(0)" class="t-rate-btn flex-1 py-2 bg-industrial-800 rounded text-lg hover:bg-industrial-700 transition" title="Neutral">😐</button>
+                        <button onclick="theaterRate(2)" class="t-rate-btn flex-1 py-2 bg-industrial-800 rounded text-lg hover:bg-green-500/20 hover:text-green-400 transition" title="Love it">🔥</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- INTELLIGENCE DASHBOARD -->
+    <div id="dashboard-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+        <div class="bg-industrial-900 w-full max-w-4xl max-h-[90vh] rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden">
+            <div class="p-6 border-b border-white/5 flex justify-between items-center bg-industrial-950/50">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <svg class="w-5 h-5 text-industrial-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    Neural Profile & Stats
+                </h3>
+                <button onclick="toggleDashboard()" class="text-industrial-400 hover:text-white">✕</button>
+            </div>
+            
+            <div class="p-6 overflow-y-auto custom-scrollbar flex-1 flex flex-col md:flex-row gap-8">
+                <!-- Affinity Stats -->
+                <div class="flex-1 space-y-6">
+                    <div>
+                        <h4 class="text-xs font-mono uppercase tracking-widest text-industrial-400 mb-4">Topic Affinity</h4>
+                        <div id="stats-tags" class="space-y-3">
+                            <!-- Injected bars -->
+                            <div class="text-sm text-industrial-500 italic">Insufficient data. Watch and rate videos.</div>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-mono uppercase tracking-widest text-industrial-400 mb-4">Creator Affinity</h4>
+                        <div id="stats-creators" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- History Log -->
+                <div class="flex-1">
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="text-xs font-mono uppercase tracking-widest text-industrial-400">Interaction Log</h4>
+                        <button onclick="clearHistory()" class="text-[10px] text-red-400 hover:text-red-300 uppercase tracking-widest border border-red-500/20 px-2 py-1 rounded">Wipe Data</button>
+                    </div>
+                    <div id="history-list" class="space-y-2 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
+                        <!-- History items -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA LAYER: Ultra-compact format for easy expansion ---
+        // Format: [YouTube ID, Title, Creator, Tags (comma separated)]
+        const rawVideoData = [
+            // Original List
+            ['jj0CmnxuTaQ', 'Danny MacAskill: Danny Daycare', 'Danny MacAskill', 'Biking,Extreme,Sports,Comedy'],
+            ['K_7k3fnxPq0', 'Danny MacAskill\'s Wee Day Out', 'Danny MacAskill', 'Biking,Extreme,Sports,Scotland'],
+            ['Wezqnb5zK8M', 'Minecraft Manhunt, But the Twist is Fake', 'Kier and Dev', 'Minecraft,Manhunt,Gaming,Speedrun'],
+            ['gd5E0sWmCsM', 'Minecraft Manhunt, But I\'m a Redstone Master', 'Kier and Dev', 'Minecraft,Manhunt,Redstone,Gaming'],
+            ['3fHgO1a_tOI', 'Can A Noob Learn Terraria Without The Wiki?', 'Throarbin', 'Terraria,Gaming,Challenge,Indie'],
+            ['332L72Ixijg', 'I Played 100 Days Of Minecraft Bedrock Edition', 'Evident', 'Minecraft,Bedrock,Gaming,Survival'],
+            ['jB_XWKx6nIE', 'I Found 100 Minecraft Bedrock Bugs', 'Evident', 'Minecraft,Bedrock,Bugs,Gaming'],
+            ['e_MSqS1-Ubs', 'In Flames - Meet Your Maker', 'In Flames', 'Music,Metal,Swedish,Guitar'],
+            ['goddrM-QozI', 'In Flames - State of Slow Decay', 'In Flames', 'Music,Metal,Swedish,Heavy'],
+            ['2rUwQpwcOMI', 'The Jester Race - Full Album Stream', 'In Flames', 'Music,Metal,Swedish,Classic'],
+            ['cwBmH99Kt8A', 'Whoracle - Full Album Stream', 'In Flames', 'Music,Metal,Swedish,Classic'],
+            ['oUpf7dEHv50', 'Clutch - The Mob Goes Wild', 'Clutch', 'Music,Rock,Groove,Live'],
+            ['dxa9xqe4UNA', 'Clutch - Slaughter Beach', 'Clutch', 'Music,Rock,Stoner,Blues'],
+            ['BZ7IEWwQ4Cg', 'The Guys Who Invented Q-Tips', 'Ryan George', 'Comedy,Sketch,Inventions,Humor'],
+            ['L3tLFdrmHRw', 'The Uncle Who Can\'t Spot AI', 'Ryan George', 'Comedy,Sketch,AI,Humor'],
+            ['fg0a7iZLl1s', 'The First Guy To Ever Swear', 'Ryan George', 'Comedy,Sketch,History,Humor'],
+            ['hJ3L5tMq5oc', 'Demon Hunter - I\'m Done', 'Demon Hunter', 'Music,Metal,Christian,Heavy'],
+            ['pPJyAIbnWlU', 'Hytale Update 4 is HUGE', 'Kweebec Corner', 'Hytale,Gaming,Updates,News'],
+            ['ld_8zROYDzw', 'Forget Q-Tips — Here’s How You Should Be Cleaning Your Ears', 'Business Insider', 'Health,Science,Educational,Lifehack'],
+            
+            // EXPANDED LIST
+            ['F1Hq8eVOMHs', 'Building a modern web app with no frameworks', 'Fireship', 'Coding,Web,Development,Tech'],
+            ['lkIFF4maKMU', '100+ Web Development Things you Should Know', 'Fireship', 'Coding,Web,Education,Tech'],
+            ['bMknfKXIFA8', 'React Course - Beginner\'s Tutorial', 'freeCodeCamp', 'Coding,React,Education,Tutorial'],
+            ['8hly31xKli0', 'Algorithms and Data Structures Tutorial', 'freeCodeCamp', 'Coding,Algorithms,Education,Computer Science'],
+            ['v64KOxKVLVg', 'The history of the world according to cats', 'TED-Ed', 'Education,History,Animation,Science'],
+            ['UoBOJwX_t3Q', 'Why do we dream? - Amy Adkins', 'TED-Ed', 'Education,Science,Animation,Brain'],
+            ['T-D1KVIuvjA', 'The paradox of value - Akshita Agarwal', 'TED-Ed', 'Education,Economics,Animation,Science'],
+            ['M5QY2_8704o', '100 Days Building a Modern Underground Hut', 'Mr. Heang Update', 'Building,Survival,Bushcraft,Nature'],
+            ['dQw4w9WgXcQ', 'Rick Astley - Never Gonna Give You Up', 'Rick Astley', 'Music,Pop,Classic,Meme'],
+            ['fJ9rUzIMcZQ', 'Bohemian Rhapsody - Queen', 'Queen Official', 'Music,Rock,Classic,Legend'],
+            ['hHW1oY26kxQ', 'The Complete Cyberpunk 2077 Timeline', 'The Leaderboard', 'Gaming,Cyberpunk,Lore,Story'],
+            ['S8b1zWOgOKA', 'The Outer Wilds is a Masterpiece', 'Skill Up', 'Gaming,Review,Essay,Masterpiece'],
+            ['sB_IG8lF3E0', 'Hollow Knight: The Making of a Masterpiece', 'mossbag', 'Gaming,Hollow Knight,Lore,Indie'],
+            ['9P6rdqiybaw', 'I Built a Keyboard that Types using WATER', 'Glarses', 'Tech,Keyboard,Comedy,Hardware'],
+            ['y8OnoxKotPQ', 'I bought the cheapest PC on Amazon', 'Dawid Does Tech Stuff', 'Tech,PC,Comedy,Hardware'],
+            ['86BowNRrobs', 'The Most Baffling Mystery in Speedrunning', 'Karl Jobst', 'Gaming,Speedrun,Mystery,History'],
+            ['4Zqx2GkiqfM', 'The 100 Hour Goldeneye 007 Speedrun Mystery', 'Karl Jobst', 'Gaming,Speedrun,Mystery,History'],
+            ['VZMfhtKa-wo', 'I coded a game using ONLY physics', 'Dani', 'Coding,GameDev,Comedy,Unity'],
+            ['WZhjjnycgWE', 'I made a Multiplayer Game in 10 Minutes', 'Dani', 'Coding,GameDev,Multiplayer,Unity'],
+            ['O5ND2W1tVfU', 'Elden Ring - Official Gameplay Reveal', 'BANDAI NAMCO', 'Gaming,Elden Ring,Trailer,RPG'],
+            ['jNQXAC9IVRw', 'Me at the zoo', 'jawed', 'History,Vlog,YouTube,Classic'],
+            ['6ZfuNTqbHE8', 'Marvel Studios\' Avengers: Infinity War Trailer', 'Marvel Entertainment', 'Movie,Trailer,Marvel,Action']
+        ];
+
+        // Parse to structured objects
+        const videoDB = rawVideoData.map(v => ({
+            id: v[0],
+            title: v[1],
+            creator: v[2],
+            tags: v[3].split(','),
+            searchString: `${v[1]} ${v[2]} ${v[3]}`.toLowerCase()
+        }));
+
+        // --- CORE STATE ---
+        let currentDisplayCount = 12;
+        let activeSearchQuery = '';
+        let activeTagFilter = '';
+        let activeTheaterVideo = null;
+        
+        // AI Vector Profile (Pre-calculated for speed)
+        let userVector = {
+            creators: {},
+            tags: {},
+            totalRatings: 0
+        };
+
+        // --- PROCEDURAL GENERATION ---
+        
+        // Setup Favicon using SVG string
+        function setupFavicon() {
+            const svgContent = document.getElementById('app-logo').outerHTML
+                .replace('class="hidden"', '')
+                .replace('xmlns="http://www.w3.org/2000/svg"', 'xmlns="http://www.w3.org/2000/svg" width="100" height="100"');
+            const encoded = encodeURIComponent(svgContent);
+            document.getElementById('favicon').href = `data:image/svg+xml,${encoded}`;
+            document.getElementById('logo-container').innerHTML = svgContent;
+        }
+
+        // Generate safe, readable background color based on string hash
+        function getStringColor(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const h = Math.abs(hash) % 360;
+            // Saturation 60-80%, Lightness 20-35% for contrast with white text
+            const s = 60 + (Math.abs(hash) % 20);
+            const l = 20 + (Math.abs(hash) % 15);
+            return `hsl(${h}, ${s}%, ${l}%)`;
+        }
+
+        // --- AI & RECOMMENDATION LOGIC ---
+
+        function computeUserVector() {
+            const history = JSON.parse(localStorage.getItem('newtube_nexus_history') || '[]');
+            userVector = { creators: {}, tags: {}, totalRatings: history.length };
+            
+            // Weight recent items more heavily (Decay algorithm)
+            history.forEach((entry, index) => {
+                const age = index; // 0 is newest
+                const decayFactor = Math.max(0.2, 1 - (age * 0.02)); // Slow decay down to 20% impact
+                const impact = entry.rating * decayFactor;
+
+                // Accumulate creator weights
+                userVector.creators[entry.creator] = (userVector.creators[entry.creator] || 0) + impact * 2.0;
+
+                // Accumulate tag weights
+                entry.tags.forEach(tag => {
+                    userVector.tags[tag] = (userVector.tags[tag] || 0) + impact * 1.0;
+                });
+            });
+
+            updateAlgoStatus();
+            renderDashboardStats();
+        }
+
+        function calculateFastScore(video) {
+            // O(1) lookups thanks to pre-computed vector
+            let score = 0;
+            
+            // Base randomness to keep feed fresh (0 to 1.5)
+            score += Math.random() * 1.5;
+
+            if (userVector.totalRatings === 0) return score; // Random feed for new users
+
+            // Creator match
+            score += (userVector.creators[video.creator] || 0);
+
+            // Tag match sum
+            for(let i=0; i<video.tags.length; i++) {
+                score += (userVector.tags[video.tags[i]] || 0);
+            }
+
+            return score;
+        }
+
+        function updateAlgoStatus() {
+            const ind = document.getElementById('algo-indicator');
+            const status = document.getElementById('algo-status');
+            
+            if (userVector.totalRatings === 0) {
+                ind.className = "w-1.5 h-1.5 bg-industrial-700 rounded-full mr-2";
+                status.innerText = "Engine Idle";
+            } else {
+                ind.className = "w-1.5 h-1.5 bg-industrial-accent rounded-full mr-2 shadow-[0_0_8px_rgba(14,165,233,0.8)]";
+                status.innerText = `Matrix Active (${userVector.totalRatings} nodes)`;
+            }
+        }
+
+        // --- UI RENDERING ---
+
+        function extractTopTags() {
+            const tagSet = new Set();
+            videoDB.forEach(v => v.tags.forEach(t => tagSet.add(t)));
+            const container = document.getElementById('tag-filters');
+            
+            // Create "All" pill
+            let html = `<button onclick="setTagFilter('')" class="shrink-0 px-4 py-1.5 rounded-full text-xs font-mono transition-colors border ${activeTagFilter === '' ? 'bg-white text-black border-white' : 'bg-industrial-800/50 text-industrial-400 border-white/10 hover:bg-industrial-800'}">All Matrix</button>`;
+            
+            // Create pills for top 15 tags randomly to keep UI clean, or popular ones
+            Array.from(tagSet).sort().slice(0, 20).forEach(tag => {
+                const isActive = activeTagFilter === tag;
+                html += `<button onclick="setTagFilter('${tag}')" class="shrink-0 px-4 py-1.5 rounded-full text-xs font-mono transition-colors border ${isActive ? 'bg-industrial-accent text-white border-industrial-accent' : 'bg-industrial-800/50 text-industrial-400 border-white/10 hover:bg-industrial-800'}">${tag}</button>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function setTagFilter(tag) {
+            activeTagFilter = tag;
+            currentDisplayCount = 12;
+            extractTopTags(); // Re-render active state
+            renderFeed(true);
+        }
+
+        function handleSearch(val) {
+            activeSearchQuery = val.toLowerCase();
+            currentDisplayCount = 12;
+            renderFeed(true);
+        }
+
+        function forceRefresh() {
+            currentDisplayCount = 12;
+            renderFeed(true);
+        }
+
+        function renderFeed(reset = false) {
+            const grid = document.getElementById('video-grid');
+            if (reset) {
+                grid.innerHTML = '';
+                document.documentElement.scrollTop = 0;
+            }
+
+            // 1. Filter
+            let view = videoDB.filter(v => {
+                const matchesSearch = !activeSearchQuery || v.searchString.includes(activeSearchQuery);
+                const matchesTag = !activeTagFilter || v.tags.includes(activeTagFilter);
+                return matchesSearch && matchesTag;
+            });
+
+            // 2. Sort computationally fast
+            view.sort((a, b) => calculateFastScore(b) - calculateFastScore(a));
+
+            // 3. Render Batch
+            const batch = view.slice(0, currentDisplayCount);
+            
+            batch.forEach((v, idx) => {
+                if (!document.getElementById(`vid-${v.id}`)) {
+                    const card = document.createElement('div');
+                    card.id = `vid-${v.id}`;
+                    card.className = "video-card bg-industrial-900 rounded-2xl overflow-hidden cursor-pointer group border border-white/5 flex flex-col";
+                    card.onclick = () => openTheater(v);
+                    
+                    const creatorColor = getStringColor(v.creator);
+                    const isHighMatch = calculateFastScore(v) > 3;
+
+                    card.innerHTML = `
+                        <div class="relative aspect-video bg-black overflow-hidden">
+                            <img src="https://img.youtube.com/vi/${v.id}/maxresdefault.jpg" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition duration-700" 
+                                 onerror="this.src='https://img.youtube.com/vi/${v.id}/mqdefault.jpg'">
+                            ${isHighMatch ? `<div class="absolute top-2 right-2 bg-industrial-accent/90 backdrop-blur text-white px-2 py-1 rounded text-[9px] font-mono font-bold uppercase shadow-lg shadow-industrial-accent/20">High Match</div>` : ''}
+                            <div class="absolute inset-0 bg-gradient-to-t from-industrial-900 via-transparent to-transparent opacity-90"></div>
+                            
+                            <!-- Play Icon overlay -->
+                            <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div class="w-12 h-12 bg-industrial-accent/90 backdrop-blur rounded-full flex items-center justify-center shadow-xl shadow-industrial-accent/30 translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                                    <svg class="w-5 h-5 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-5 flex-1 flex flex-col">
+                            <h3 class="font-bold text-[15px] leading-tight mb-3 text-industrial-50 group-hover:text-industrial-accent transition-colors line-clamp-2">${v.title}</h3>
+                            <div class="mt-auto">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shadow-inner" style="background-color: ${creatorColor};">${v.creator.charAt(0).toUpperCase()}</span>
+                                    <span class="text-xs text-industrial-400 font-medium truncate">${v.creator}</span>
+                                </div>
+                                <div class="flex flex-wrap gap-1.5">
+                                    ${v.tags.slice(0,3).map(t => `<span class="px-2 py-0.5 bg-industrial-800/80 rounded text-[10px] text-industrial-400 font-mono border border-white/5">${t}</span>`).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                    
+                    // Stagger animation
+                    setTimeout(() => card.classList.add('loaded'), 50 * (idx % 12));
+                }
+            });
+
+            // Toggle scroll anchor visibility
+            const anchor = document.getElementById('scroll-anchor');
+            if (currentDisplayCount < view.length) {
+                anchor.classList.remove('opacity-0');
+            } else {
+                anchor.classList.add('opacity-0');
+            }
+        }
+
+        // --- PRODUCTIVITY: THEATER & NOTES ---
+
+        function openTheater(video) {
+            activeTheaterVideo = video;
+            const modal = document.getElementById('theater-modal');
+            const iframe = document.getElementById('theater-frame');
+            const title = document.getElementById('theater-title');
+            const notes = document.getElementById('theater-notes');
+            
+            // Prevent document scrolling
+            document.body.style.overflow = 'hidden';
+            
+            // Set data
+            title.innerText = video.title;
+            // Use youtube-nocookie and minimal UI parameters
+            iframe.src = `https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0&modestbranding=1`;
+            
+            // Load notes
+            const savedNotes = localStorage.getItem(`newtube_notes_${video.id}`);
+            notes.value = savedNotes || '';
+
+            // Reset local rating UI
+            document.querySelectorAll('.t-rate-btn').forEach(btn => {
+                btn.classList.remove('ring-2', 'ring-industrial-accent', 'bg-industrial-800');
+            });
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeTheater() {
+            const modal = document.getElementById('theater-modal');
+            const iframe = document.getElementById('theater-frame');
+            
+            saveNotes(); // Auto-save on close
+            
+            iframe.src = ''; // Stop playback
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            activeTheaterVideo = null;
+            document.body.style.overflow = '';
+        }
+
+        function saveNotes() {
+            if (!activeTheaterVideo) return;
+            const text = document.getElementById('theater-notes').value;
+            if (text.trim() === '') {
+                localStorage.removeItem(`newtube_notes_${activeTheaterVideo.id}`);
+            } else {
+                localStorage.setItem(`newtube_notes_${activeTheaterVideo.id}`, text);
+            }
+            
+            // Visual feedback
+            const btn = document.querySelector('button[onclick="saveNotes()"]');
+            const oldTxt = btn.innerText;
+            btn.innerText = "Saved ✓";
+            btn.classList.add('text-green-400');
+            setTimeout(() => {
+                btn.innerText = oldTxt;
+                btn.classList.remove('text-green-400');
+            }, 2000);
+        }
+
+        function theaterRate(rating) {
+            if (!activeTheaterVideo) return;
+
+            // Update UI
+            const btns = document.querySelectorAll('.t-rate-btn');
+            btns.forEach(b => b.classList.remove('ring-2', 'ring-industrial-accent', 'scale-110'));
+            
+            // Quick map rating to button index (0 = -2, 1 = 0, 2 = 2)
+            let btnIndex = 1;
+            if(rating < 0) btnIndex = 0;
+            if(rating > 0) btnIndex = 2;
+            
+            btns[btnIndex].classList.add('ring-2', 'ring-industrial-accent', 'scale-110');
+
+            // Save to neural history
+            const entry = {
+                id: activeTheaterVideo.id,
+                title: activeTheaterVideo.title,
+                creator: activeTheaterVideo.creator,
+                tags: activeTheaterVideo.tags,
+                rating: rating,
+                timestamp: new Date().toISOString()
+            };
+
+            const history = JSON.parse(localStorage.getItem('newtube_nexus_history') || '[]');
+            history.unshift(entry);
+            // Cap history to prevent infinite bloat
+            if (history.length > 500) history.length = 500;
+            
+            localStorage.setItem('newtube_nexus_history', JSON.stringify(history));
+            
+            // Recompute AI weights in background
+            computeUserVector();
+        }
+
+        // --- DASHBOARD & STATS ---
+
+        function toggleDashboard() {
+            const modal = document.getElementById('dashboard-modal');
+            if (modal.classList.contains('hidden')) {
+                renderDashboardStats();
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function renderDashboardStats() {
+            const history = JSON.parse(localStorage.getItem('newtube_nexus_history') || '[]');
+            const historyList = document.getElementById('history-list');
+            
+            // Render History Items
+            historyList.innerHTML = history.slice(0, 20).map(item => `
+                <div class="p-3 bg-industrial-950 rounded-lg border border-white/5 flex items-center justify-between group">
+                    <div class="overflow-hidden pr-4">
+                        <p class="text-xs text-white truncate">${item.title}</p>
+                        <p class="text-[10px] font-mono text-industrial-400 uppercase">${item.creator} • ${new Date(item.timestamp).toLocaleDateString()}</p>
+                    </div>
+                    <div class="text-xl shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                        ${item.rating > 0 ? '🔥' : (item.rating < 0 ? '👎' : '😐')}
+                    </div>
+                </div>
+            `).join('');
+
+            if (history.length === 0) return;
+
+            // Render Tag Bars
+            const sortedTags = Object.entries(userVector.tags)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 6);
+            
+            const maxTag = sortedTags[0]?.[1] || 1;
+
+            document.getElementById('stats-tags').innerHTML = sortedTags.map(([tag, score]) => {
+                const pct = Math.max(5, (score / maxTag) * 100);
+                return `
+                <div>
+                    <div class="flex justify-between text-[10px] font-mono text-industrial-400 mb-1">
+                        <span>${tag}</span>
+                        <span>${score.toFixed(1)}w</span>
+                    </div>
+                    <div class="h-1.5 w-full bg-industrial-950 rounded-full overflow-hidden">
+                        <div class="h-full bg-industrial-accent stat-bar-fill rounded-full" style="width: ${pct}%"></div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            // Render Creator Bars
+            const sortedCreators = Object.entries(userVector.creators)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 4);
+            
+            const maxCreator = sortedCreators[0]?.[1] || 1;
+
+            document.getElementById('stats-creators').innerHTML = sortedCreators.map(([creator, score]) => {
+                const pct = Math.max(5, (score / maxCreator) * 100);
+                return `
+                <div>
+                    <div class="flex justify-between text-[10px] font-mono text-industrial-400 mb-1">
+                        <span>${creator}</span>
+                    </div>
+                    <div class="h-1.5 w-full bg-industrial-950 rounded-full overflow-hidden">
+                        <div class="h-full bg-purple-500 stat-bar-fill rounded-full" style="width: ${pct}%"></div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function clearHistory() {
+            if (confirm('Wipe neural data? This resets recommendations but keeps your local notes.')) {
+                localStorage.removeItem('newtube_nexus_history');
+                computeUserVector();
+                renderDashboardStats();
+                forceRefresh();
+            }
+        }
+
+        // --- INIT & EVENT LISTENERS ---
+
+        // Infinite Scroll Observer
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && currentDisplayCount < videoDB.length) {
+                currentDisplayCount += 8;
+                renderFeed();
+            }
+        }, { threshold: 0.1 });
+
+        // Escape to close theater/dashboard
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (!document.getElementById('theater-modal').classList.contains('hidden')) {
+                    closeTheater();
+                } else if (!document.getElementById('dashboard-modal').classList.contains('hidden')) {
+                    toggleDashboard();
+                }
+            }
+        });
+
+        window.onload = () => {
+            setupFavicon();
+            computeUserVector();
+            extractTopTags();
+            renderFeed(true);
+            observer.observe(document.getElementById('scroll-anchor'));
+        };
+
+    </script>
+</body>
+</html>
