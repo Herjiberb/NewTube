@@ -259,11 +259,11 @@
 
     <script>
         // --- DATA LAYER: Ultra-compact format for easy expansion ---
-        // Format: [YouTube ID, Title, Creator, Tags (comma separated)]
+        // Format: [YouTube ID, Title, Creator, Tags (comma separated), Release Date (YYYY-MM-DD) - Optional]
         const rawVideoData = [
-            // Original List
-            ['jj0CmnxuTaQ', 'Danny MacAskill: Danny Daycare', 'Danny MacAskill', 'Biking,Extreme,Sports,Comedy'],
-            ['K_7k3fnxPq0', 'Danny MacAskill\'s Wee Day Out', 'Danny MacAskill', 'Biking,Extreme,Sports,Scotland'],
+            // Example of videos with dates (Note the 5th parameter)
+            ['jj0CmnxuTaQ', 'Danny MacAskill: Danny Daycare', 'Danny MacAskill', 'Biking,Extreme,Sports,Comedy', '2019-05-20']
+            ['K_7k3fnxPq0', 'Danny MacAskill\'s Wee Day Out', 'Danny MacAskill', 'Biking,Extreme,Sports,Scotland', '2016-10-12'],
             ['pPJyAIbnWlU', 'Hytale Update 4 is HUGE', 'Kweebec Corner', 'Hytale,Gaming,Update,News'],
             ['ld_8zROYDzw', 'Forget Q-Tips — Here’s How You Should Be Cleaning Your Ears', 'Business Insider', 'Health,Science,Educational,Lifehack'],
             // Ryan George
@@ -337,14 +337,30 @@
 			['CHL7JwpUQ_Y', 'Ben Shapiro Reacts To Woke TikToks: Racism Edition!', 'Ben Shapiro', 'Conservative,Woke,Reaction,TikTok'],
         ];
 
-        // Parse to structured objects
-        const videoDB = rawVideoData.map(v => ({
-            id: v[0],
-            title: v[1],
-            creator: v[2],
-            tags: v[3].split(','),
-            searchString: `${v[1]} ${v[2]} ${v[3]}`.toLowerCase()
-        }));
+        // Parse to structured objects & Pre-calculate temporal metadata for performance
+        const NOW = Date.now();
+        const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+        const videoDB = rawVideoData.map(v => {
+            const releaseDate = v[4] ? new Date(v[4]) : null;
+            let ageInDays = Infinity; // Default to infinitely old if no date
+            
+            if (releaseDate) {
+                // Ensure timezone safety by using UTC math, or just basic timestamp math
+                ageInDays = (NOW - releaseDate.getTime()) / MS_PER_DAY;
+            }
+
+            return {
+                id: v[0],
+                title: v[1],
+                creator: v[2],
+                tags: v[3].split(','),
+                searchString: `${v[1]} ${v[2]} ${v[3]}`.toLowerCase(),
+                releaseDate: releaseDate,
+                ageInDays: ageInDays,
+                displayDate: releaseDate ? releaseDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown Date'
+            };
+        });
 
         // --- CORE STATE ---
         let currentDisplayCount = 12;
@@ -535,13 +551,11 @@
                     score += creatorScore + (tagScore / Math.max(1, v.tags.length));
             
                     if (v._isNew) {
-                        score += 5.0; // Boost new content
+                        score += 5.0; // Base boost for unseen content
                     } else {
                         // SEEN VIDEO LOGIC: Massive base penalty
                         score -= 100; 
                         
-                        // Re-surface logic (Watch Again). 
-                        // If they rated it high, or watched it a long time, give it a 15% chance to skyrocket back to the feed.
                         const pastEntry = history.find(h => h.id === v.id);
                         if (pastEntry && (pastEntry.rating > 0 || pastEntry.watchSeconds > 300)) {
                             if (Math.random() < 0.15) {
@@ -551,6 +565,17 @@
                         }
                     }
                 }
+
+                // --- TEMPORAL BOOST LOGIC ---
+                // Only prioritize fresh content if the user hasn't seen it yet
+                if (v._isNew) {
+                    if (v.ageInDays <= 7) {
+                        score += 25.0; // "Fresh": Massive priority to force it to the top
+                    } else if (v.ageInDays <= 180) {
+                        score += 8.0;  // "New": Mild priority
+                    }
+                }
+
                 v._tempScore = score;
             });
 
@@ -630,7 +655,10 @@
                             <div class="mt-auto">
                                 <div class="flex items-center gap-2 mb-3">
                                     <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shadow-inner" style="background-color: ${creatorColor};">${v.creator.charAt(0).toUpperCase()}</span>
-                                    <span class="text-xs text-industrial-400 font-medium truncate">${v.creator}</span>
+                                    <div class="flex flex-col overflow-hidden">
+                                        <span class="text-xs text-industrial-300 font-medium truncate leading-tight">${v.creator}</span>
+                                        <span class="text-[10px] text-industrial-500 font-mono tracking-wide truncate">${v.displayDate}</span>
+                                    </div>
                                 </div>
                                 <div class="flex flex-wrap gap-1.5">
                                     ${v.tags.slice(0,3).map(t => `<span class="px-2 py-0.5 bg-industrial-800/80 hover:bg-industrial-700 rounded text-[10px] text-industrial-300 font-mono border border-white/5 transition-colors">${t}</span>`).join('')}
