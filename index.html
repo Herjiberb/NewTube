@@ -262,13 +262,13 @@
         // Format: [YouTube ID, Title, Creator, Tags (comma separated), Release Date (YYYY-MM-DD) - Optional]
         const rawVideoData = [
             // Example of videos with dates (Note the 5th parameter)
-            ['jj0CmnxuTaQ', 'Danny MacAskill: Danny Daycare', 'Danny MacAskill', 'Biking,Extreme,Sports,Comedy', '2019-05-20'],
-            ['K_7k3fnxPq0', 'Danny MacAskill\'s Wee Day Out', 'Danny MacAskill', 'Biking,Extreme,Sports,Scotland', '2016-10-12'],
+            ['jj0CmnxuTaQ', 'Danny MacAskill: Danny Daycare', 'Danny MacAskill', 'Biking,Extreme,Sports,Comedy', '2019-05-21'],
+            ['K_7k3fnxPq0', 'Danny MacAskill\'s Wee Day Out', 'Danny MacAskill', 'Biking,Extreme,Sports,Scotland', '2016-10-13'],
             ['pPJyAIbnWlU', 'Hytale Update 4 is HUGE', 'Kweebec Corner', 'Hytale,Gaming,Update,News'],
             ['ld_8zROYDzw', 'Forget Q-Tips — Here’s How You Should Be Cleaning Your Ears', 'Business Insider', 'Health,Science,Educational,Lifehack'],
             // Ryan George
             ['BZ7IEWwQ4Cg', 'The Guys Who Invented Q-Tips', 'Ryan George', 'Comedy,Sketch,Inventions'],
-            ['L3tLFdrmHRw', 'The Uncle Who Can\'t Spot AI', 'Ryan George', 'Comedy,Sketch,AI'],
+            ['L3tLFdrmHRw', 'Your Uncle Who Can\'t Spot AI', 'Ryan George', 'Comedy,Sketch,AI', '2025-06-08'],
             ['fg0a7iZLl1s', 'The First Guy To Ever Swear', 'Ryan George', 'Comedy,Sketch,History'],
             ['HsaJWZ5Lej8', 'The First Guy To Ever Tell A Joke', 'Ryan George', 'Comedy,Sketch,Jokes'],
             
@@ -280,9 +280,9 @@
             ['TZ3yWP8Ulp4', 'I Convinced My Wife to Play Terraria', 'Throarbin', 'Terraria,Gaming,Wife,Indie'],
             ['A_U8-JfPUtA', 'I\'m Spending a YEAR on One World | Terraria 1.4.5 January', 'Throarbin', 'Terraria,Gaming,Longterm,Indie'],
             ['fAIY6IH36aQ', 'I\'m Spending ONE YEAR on one world | February Terraria 1.4.5', 'Throarbin', 'Terraria,Gaming,Longterm,Indie'],
-            ['F5-EnlvGoxU', 'I\'m Spending an ENTIRE YEAR on ONE WORLD | June Edition', 'Throarbin', 'Terraria,Gaming,Longterm,Indie', '2026-06-30'],
+            ['F5-EnlvGoxU', 'I\'m Spending an ENTIRE YEAR on ONE WORLD | June Edition', 'Throarbin', 'Terraria,Gaming,Longterm,Indie', '2026-06-31'],
 
-            ['4aoNzIYAGU0', 'I Beat Terraria 1.4.5 Bigger and Boulder', 'ChippyGaming', 'Terraria,Gaming,Update,Indie'],
+            ['4aoNzIYAGU0', 'I Beat Terraria 1.4.5 Bigger and Boulder', 'ChippyGaming', 'Terraria,Gaming,Update,Indie', '2026-01-31'],
 
 			['7Bp1zGgIcdo', 'I Beat Terraria as a HEALER to Keep My Wife Alive', 'CJ DEATHBOT', 'Terraria,Gaming,Wife,Indie'],
 
@@ -567,13 +567,33 @@
                     }
                 }
 
-                // --- TEMPORAL BOOST LOGIC ---
-                // Only prioritize fresh content if the user hasn't seen it yet
+                // --- ENHANCED TEMPORAL BOOST LOGIC ---
+                // Only prioritize fresh content if the user has an established profile 
+                // AND has shown at least a vague interest in this type of content.
                 if (v._isNew) {
-                    if (v.ageInDays <= 7) {
-                        score += 25.0; // "Fresh": Massive priority to force it to the top
-                    } else if (v.ageInDays <= 180) {
-                        score += 8.0;  // "New": Mild priority
+                    let temporalMultiplier = 1.0;
+                    
+                    // Check if user has a profile and has a baseline affinity score for this video
+                    // (Subtracting the base 5.0 discovery boost to see actual taste match)
+                    const actualTasteMatch = userVector.totalRatings > 0 ? (score - 5.0) : 0;
+                    const hasVagueInterest = actualTasteMatch > 0.1;
+
+                    if (hasVagueInterest) {
+                        if (v.ageInDays <= 7) {
+                            temporalMultiplier = 3.5; // "Fresh": 250% boost to baseline interest
+                        } else if (v.ageInDays <= 180) {
+                            temporalMultiplier = 1.5; // "New": 50% boost to baseline interest
+                        }
+                    }
+
+                    // Apply the math based on profile status
+                    if (score >= 0) {
+                        // Add a tiny baseline offset so neutral tags get fair discovery 
+                        // without letting freshness blind the empty profile feed.
+                        score = (score + 0.5) * temporalMultiplier;
+                    } else {
+                        // Amplifies negative scores to strictly respect dislikes
+                        score = score * temporalMultiplier;
                     }
                 }
 
